@@ -1,0 +1,12 @@
+# This is the repository index for mcxpkgs. Keep it simple and clutter free.
+#
+# [[package]]
+# name = "examplePackage"
+# version = "1.0.0"
+# description = "A simple examplePackage"
+#
+
+[[package]]
+name = "maple"
+version = "0.35.0"
+description = "A simple package manager for Mercury and its derivatives"
