@@ -1,0 +1,9 @@
+[packages.example_package]
+version = "1.0.0"
+release = 1
+license = "MIT"
+description = "A simple example package"
+dependencies = ["glibc", "ncurses"]
+conflicts = ["example_package_legacy"]
+filename = "example_package-1.0.0-1.mcx"
+sha256 = "nothing_here"
