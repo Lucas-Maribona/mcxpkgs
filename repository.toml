@@ -8,6 +8,7 @@ conflicts = ["example_package_legacy"]
 filename = "example_package-42.64.86-1.mcx"
 sha256 = "1adb41cf8efa0c375bf64d08bc0fe027a720fef0d7ac05140c2a1fe1200155a2"
 
+
 [packages.example_package_legacy]
 version = "500.42.1"
 release = 1
@@ -17,6 +18,7 @@ dependencies = ["glibc", "ncurses"]
 conflicts = ["example_package"]
 filename = "example_package_legacy-500.42.1-1.mcx"
 sha256 = "c8a31cb076b21999bd2cdcfa5f446a7a6644de88037087112fa18bd90cc13984"
+
 
 [packages.neovim]
 version = "56.99021.1"
