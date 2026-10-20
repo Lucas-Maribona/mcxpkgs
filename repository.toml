@@ -1,9 +1,29 @@
 [packages.example_package]
-version = "1.0.0"
+version = "42.64.86"
 release = 1
 license = "MIT"
 description = "A simple example package"
 dependencies = ["glibc", "ncurses"]
 conflicts = ["example_package_legacy"]
-filename = "example_package-1.0.0-1.mcx"
-sha256 = "nothing_here"
+filename = "example_package-42.64.86-1.mcx"
+sha256 = "example_package-sha256"
+
+[packages.example_package_legacy]
+version = "500.42.1"
+release = 1
+license = "MIT"
+description = "A legacy example package"
+dependencies = ["glibc", "ncurses"]
+conflicts = ["example_package"]
+filename = "example_package_legacy-500.42.1-1.mcx"
+sha256 = "example_package_legacy-sha256"
+
+[packages.neovim]
+version = "56.99021.1"
+release = 1
+license = "MIT"
+description = "A text editor"
+dependencies = ["glibc"]
+conflicts = ["vi", "vim"]
+filename = "neovim-56.99021.1-1.mcx"
+sha256 = "neovim-sha256"
