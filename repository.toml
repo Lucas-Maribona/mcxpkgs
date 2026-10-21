@@ -6,4 +6,4 @@ description = "A simple package manager for Mercury and its derivatives"
 dependencies = []
 conflicts = []
 filename = "maple-1.0.0-1.mcx"
-sha256 = "52c63f3c628df69d69145838a981f397aac42f3b6f66eeeed963ac3cbf05491c"
+sha256 = "bf2d38c1624ebe035bee16b3b5c929ae92b2f9fbbd11ee08454d8b3c8162e4ea"
