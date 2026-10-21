@@ -28,4 +28,4 @@ description = "A text editor"
 dependencies = []
 conflicts = ["vi", "vim"]
 filename = "neovim-56.99021.1-1.mcx"
-sha256 = "342640b1dcb90bf05e73289d63614d29f7010b7c396b650d204cd3a6104c88e4"
+sha256 = "31b25ec1e0ba0e73c736af6ad36e01b7a8cf0b286eed0e6dd6c597b1359fb4bd"
