@@ -1,31 +1,9 @@
-[packages.example_package]
-version = "42.64.86"
+[packages.maple]
+version = "1.0.0"
 release = 1
-license = "MIT"
-description = "A simple example package"
-dependencies = ["glibc", "ncurses"]
-conflicts = ["example_package_legacy"]
-filename = "example_package-42.64.86-1.mcx"
-sha256 = "1adb41cf8efa0c375bf64d08bc0fe027a720fef0d7ac05140c2a1fe1200155a2"
-
-
-[packages.example_package_legacy]
-version = "500.42.1"
-release = 1
-license = "MIT"
-description = "A legacy example package"
-dependencies = ["glibc", "ncurses"]
-conflicts = ["example_package"]
-filename = "example_package_legacy-500.42.1-1.mcx"
-sha256 = "c8a31cb076b21999bd2cdcfa5f446a7a6644de88037087112fa18bd90cc13984"
-
-
-[packages.neovim]
-version = "56.99021.1"
-release = 1
-license = "MIT"
-description = "A text editor"
+license = "GPL-2.0"
+description = "A simple package manager for Mercury and its derivatives"
 dependencies = []
-conflicts = ["vi", "vim"]
-filename = "neovim-56.99021.1-1.mcx"
-sha256 = "31b25ec1e0ba0e73c736af6ad36e01b7a8cf0b286eed0e6dd6c597b1359fb4bd"
+conflicts = []
+filename = "maple-1.0.0-1.mcx"
+sha256 = "1adb41cf8efa0c375bf64d08bc0fe027a720fef0d7ac05140c2a1fe1200155a2"
