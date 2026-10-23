@@ -7,3 +7,13 @@ dependencies = []
 conflicts = []
 filename = "maple-1.0.0-1.mcx"
 sha256 = "bf2d38c1624ebe035bee16b3b5c929ae92b2f9fbbd11ee08454d8b3c8162e4ea"
+
+[packages.hello]
+version = "2.12.3"
+release = 1
+license = "GPL-3.0"
+description = "GNU Hello example program"
+dependencies = []
+conflicts = []
+filename = "hello-2.12.3-1.mcx"
+sha256 = "fc4429ec94aa222ca746c3135fd0c0fe35a652749c1b1ba441446d71c5edc497"
