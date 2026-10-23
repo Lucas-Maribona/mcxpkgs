@@ -1,0 +1,170 @@
+# Save as .github/workflows/build-glibc.yml
+# LFS 13.1-inspired native glibc build for Maple packaging experiments.
+# Not a substitute for the LFS cross-toolchain / chroot production build.
+name: Build glibc for Maple
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: "Run glibc's full test suite (recommended; CI may expose host-specific failures)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  glibc:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GLIBC_VERSION: "2.44"
+      PACKAGE_RELEASE: "1"
+      # Pin the source archive. Verified against independently published SHA-256.
+      GLIBC_SHA256: "37f600f2bef3c5e8300147059568b2a2e40a7ad6ccc65ce942556d49429cc667"
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Install build requirements
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential bison gawk gettext gperf python3 texinfo \
+            curl xz-utils zstd patch file binutils linux-libc-dev
+          df -h "$GITHUB_WORKSPACE"
+
+      - name: Download and verify glibc source
+        run: |
+          set -euo pipefail
+          mkdir -p work dist logs
+          cd work
+          curl --fail --location --retry 3 --show-error \
+            -o "glibc-${GLIBC_VERSION}.tar.xz" \
+            "https://ftp.gnu.org/gnu/glibc/glibc-${GLIBC_VERSION}.tar.xz"
+          printf '%s  %s\n' "$GLIBC_SHA256" "glibc-${GLIBC_VERSION}.tar.xz" | sha256sum -c -
+          tar -xf "glibc-${GLIBC_VERSION}.tar.xz"
+
+      - name: Apply Linux From Scratch 13.1 patches
+        run: |
+          set -euo pipefail
+          cd work
+          PATCH_BASE="https://www.linuxfromscratch.org/patches/lfs/13.1"
+          curl --fail --location --retry 3 --show-error \
+            -o glibc-fhs-1.patch "$PATCH_BASE/glibc-fhs-1.patch"
+          curl --fail --location --retry 3 --show-error \
+            -o glibc-2.44-upstream_fixes-1.patch \
+            "$PATCH_BASE/glibc-2.44-upstream_fixes-1.patch"
+          cd "glibc-${GLIBC_VERSION}"
+          patch -Np1 -i ../glibc-fhs-1.patch
+          patch -Np1 -i ../glibc-2.44-upstream_fixes-1.patch
+
+      - name: Configure (LFS-style, out of source)
+        run: |
+          set -euo pipefail
+          mkdir -p work/build
+          cd work/build
+          printf 'rootsbindir=/usr/sbin\n' > configparms
+          "../glibc-${GLIBC_VERSION}/configure" \
+            --prefix=/usr \
+            --disable-werror \
+            --disable-nscd \
+            libc_cv_slibdir=/usr/lib \
+            --enable-stack-protector=strong \
+            --enable-kernel=5.10
+
+      - name: Compile glibc
+        run: |
+          set -euo pipefail
+          make -C work/build -j"$(nproc)"
+
+      - name: Stage installation (NEVER install to runner /usr)
+        run: |
+          set -euo pipefail
+          stage="$GITHUB_WORKSPACE/work/pkgroot"
+          mkdir -p "$stage"
+          # Serial install avoids install-time parallelism problems.
+          make -C work/build -j1 "DESTDIR=$stage" install
+          # Generated GNU Info index is shared with other packages.
+          rm -f "$stage/usr/share/info/dir"
+          # Do not ship an environment-dependent, mutable linker cache.
+          rm -f "$stage/etc/ld.so.cache"
+
+      - name: Validate Maple payload and create .mcx
+        run: |
+          set -euo pipefail
+          stage="$GITHUB_WORKSPACE/work/pkgroot"
+          archive="dist/glibc-${GLIBC_VERSION}-${PACKAGE_RELEASE}.mcx"
+
+          # Required core runtime files, including the dynamic loader.
+          test -e "$stage/usr/lib/libc.so.6"
+          test -e "$stage/usr/lib/ld-linux-x86-64.so.2"
+          file "$stage/usr/lib/libc.so.6"
+          file "$stage/usr/lib/ld-linux-x86-64.so.2"
+
+          # Maple currently allows only usr/, etc/ and var/.
+          while IFS= read -r top; do
+            case "$top" in
+              usr|etc|var) ;;
+              *) echo "ERROR: unsupported top-level payload path: $top" >&2; exit 1 ;;
+            esac
+          done < <(find "$stage" -mindepth 1 -maxdepth 1 -printf '%f\n')
+
+          # Maple rejects absolute symlink targets.
+          if find "$stage" -type l -lname '/*' -print | grep .; then
+            echo 'ERROR: archive contains absolute symlinks' >&2
+            exit 1
+          fi
+
+          tar --zstd -cf "$archive" -C "$stage" .
+          tar --zstd -tf "$archive" > logs/archive-contents.txt
+          sha256sum "$archive" | tee "${archive}.sha256"
+          ls -lh "$archive"
+          echo 'The /lib64 dynamic-loader compatibility symlink is NOT in the package.'
+          echo 'Create it separately when constructing the target root filesystem.'
+
+      - name: Upload .mcx directly (no extra ZIP)
+        uses: actions/upload-artifact@v7
+        with:
+          path: dist/glibc-2.44-1.mcx
+          archive: false
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload SHA-256 checksum
+        uses: actions/upload-artifact@v7
+        with:
+          path: dist/glibc-2.44-1.mcx.sha256
+          archive: false
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Run glibc tests
+        if: ${{ inputs.run_tests }}
+        run: |
+          set -euo pipefail
+          # Full tests can show runner/kernel-specific failures. Do not silently ignore them.
+          set +e
+          timeout 45m make -C work/build -k -j"$(nproc)" check \
+            > logs/glibc-check.log 2>&1
+          status=$?
+          set -e
+          tail -n 100 logs/glibc-check.log
+          if [ "$status" -ne 0 ]; then
+            echo "glibc tests failed (exit $status); do NOT mark this build production-ready." >&2
+            exit "$status"
+          fi
+
+      - name: Upload test log
+        if: ${{ always() && inputs.run_tests }}
+        uses: actions/upload-artifact@v7
+        with:
+          path: logs/glibc-check.log
+          archive: false
+          if-no-files-found: warn
+          retention-days: 14
