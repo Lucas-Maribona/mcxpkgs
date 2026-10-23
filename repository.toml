@@ -17,3 +17,33 @@ dependencies = []
 conflicts = []
 filename = "hello-2.12.3-1.mcx"
 sha256 = "fc4429ec94aa222ca746c3135fd0c0fe35a652749c1b1ba441446d71c5edc497"
+
+[packages.tree]
+version = "2.3.2"
+release = 1
+license = "GPL-2.0"
+description = "Display directory structures as trees"
+dependencies = []
+conflicts = []
+filename = "tree-2.3.2-1.mcx"
+sha256 = "893a0230284a996bd410469932f0c2a737d51cc69ddf37a441abdec5e4cc89b2"
+
+[packages.which]
+version = "2.23"
+release = 1
+license = "GPL-3.0-or-later"
+description = "Locate commands in PATH"
+dependencies = []
+conflicts = []
+filename = "which-2.23-1.mcx"
+sha256 = "e9a04c70665fb278c686e5efad6ce119ac38d8bed91428aafdaf07dedd3ec4e2"
+
+[packages.micro]
+version = "2.0.15"
+release = 1
+license = "MIT"
+description = "Modern terminal-based text editor"
+dependencies = []
+conflicts = []
+filename = "micro-2.0.15-1.mcx"
+sha256 = "f130e49e9eee3ab28cf955fa7c43e8d71eecfb44785bbbafe9c301d537d68b9b"
