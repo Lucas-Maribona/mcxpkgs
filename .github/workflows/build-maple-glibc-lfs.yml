@@ -1,0 +1,141 @@
+name: Build Maple glibc (LFS cross)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  glibc:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      LFS: /tmp/maple-lfs
+      WORK: /tmp/maple-lfs-build
+      LFS_TGT: x86_64-lfs-linux-gnu
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install host tools and initialize isolated sysroot
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential bison gawk m4 texinfo patch curl ca-certificates xz-utils zstd python3 file perl flex gettext
+          mkdir -p "$WORK"/{downloads,sources,build} "$LFS"/{usr/bin,usr/lib,usr/include,usr/sbin,etc,var,lib64} dist
+          ln -s usr/lib "$LFS/lib"
+          echo "$LFS/tools/bin" >> "$GITHUB_PATH"
+          df -h .
+
+      - name: Download sources and verify LFS checksums
+        run: |
+          set -euo pipefail
+          cd "$WORK/downloads"
+          while read -r md5 url; do
+            file="$(basename "$url")"
+            curl -fL --retry 4 --connect-timeout 30 -o "$file" "$url"
+            printf '%s  %s\n' "$md5" "$file" | md5sum -c -
+          done <<'SOURCES'
+          d772acfbd55a81644e9fe7b8189cd2a5 https://sourceware.org/pub/binutils/releases/binutils-2.47.tar.xz
+          19b777fb19ea4982731392481306f0d3 https://ftpmirror.gnu.org/gcc/gcc-16.2.0/gcc-16.2.0.tar.xz
+          956dc04e864001a9c22429f761f2c283 https://ftpmirror.gnu.org/gmp/gmp-6.3.0.tar.xz
+          7c32c39b8b6e3ae85f25156228156061 https://ftpmirror.gnu.org/mpfr/mpfr-4.2.2.tar.xz
+          40c5fba305125279ea46041160e81daf https://ftpmirror.gnu.org/mpc/mpc-1.4.1.tar.xz
+          807584f564568b40162e9e4a72bf191f https://www.kernel.org/pub/linux/kernel/v7.x/linux-7.1.8.tar.xz
+          7677da43ef759c68e005f5d4c37986a6 https://ftpmirror.gnu.org/glibc/glibc-2.44.tar.xz
+          9edd452f9f99d4f87d8470c7029d237c https://www.linuxfromscratch.org/patches/lfs/development/glibc-2.44-upstream_fixes-3.patch
+          9a5997c3452909b1769918c759eff8a2 https://www.linuxfromscratch.org/patches/lfs/development/glibc-fhs-1.patch
+          SOURCES
+
+      - name: Binutils pass 1
+        run: |
+          set -euo pipefail
+          tar -xf "$WORK/downloads/binutils-2.47.tar.xz" -C "$WORK/sources"
+          mkdir -p "$WORK/build/binutils"
+          cd "$WORK/build/binutils"
+          "$WORK/sources/binutils-2.47/configure" --prefix="$LFS/tools" --with-sysroot="$LFS" --target="$LFS_TGT" --disable-nls --enable-gprofng=no --disable-werror --enable-new-dtags --enable-default-hash-style=gnu
+          make -j"$(nproc)"
+          make -j1 install
+          rm -rf "$WORK/build/binutils" "$WORK/sources/binutils-2.47"
+
+      - name: GCC pass 1
+        run: |
+          set -euo pipefail
+          tar -xf "$WORK/downloads/gcc-16.2.0.tar.xz" -C "$WORK/sources"
+          cd "$WORK/sources/gcc-16.2.0"
+          for pair in gmp:6.3.0 mpfr:4.2.2 mpc:1.4.1; do
+            name="$(echo "$pair" | cut -d: -f1)"
+            version="$(echo "$pair" | cut -d: -f2)"
+            tar -xf "$WORK/downloads/$name-$version.tar.xz"
+            mv "$name-$version" "$name"
+          done
+          sed -i.orig -e '/m64=/s/lib64/lib/' gcc/config/i386/t-linux64
+          mkdir -p "$WORK/build/gcc"
+          cd "$WORK/build/gcc"
+          "$WORK/sources/gcc-16.2.0/configure" --target="$LFS_TGT" --prefix="$LFS/tools" --with-glibc-version=2.44 --with-sysroot="$LFS" --with-newlib --without-headers --enable-default-pie --enable-default-ssp --disable-fixincludes --disable-nls --disable-shared --disable-multilib --disable-threads --disable-libatomic --disable-libgomp --disable-libquadmath --disable-libssp --disable-libvtv --disable-libstdcxx --enable-languages=c,c++
+          make -j"$(nproc)"
+          make -j1 install
+          rm -rf "$WORK/build/gcc" "$WORK/sources/gcc-16.2.0"
+          df -h .
+
+      - name: Sanitized Linux API headers
+        run: |
+          set -euo pipefail
+          tar -xf "$WORK/downloads/linux-7.1.8.tar.xz" -C "$WORK/sources"
+          cd "$WORK/sources/linux-7.1.8"
+          make mrproper
+          make headers
+          find usr/include -type f ! -name '*.h' -delete
+          cp -a usr/include/. "$LFS/usr/include/"
+          test -f "$LFS/usr/include/linux/version.h"
+          rm -rf "$WORK/sources/linux-7.1.8"
+
+      - name: Cross-compile glibc 2.44
+        run: |
+          set -euo pipefail
+          tar -xf "$WORK/downloads/glibc-2.44.tar.xz" -C "$WORK/sources"
+          cd "$WORK/sources/glibc-2.44"
+          patch -Np1 -i "$WORK/downloads/glibc-fhs-1.patch"
+          patch -Np1 -i "$WORK/downloads/glibc-2.44-upstream_fixes-3.patch"
+          ln -s ../lib/ld-linux-x86-64.so.2 "$LFS/lib64/ld-linux-x86-64.so.2"
+          ln -s ../lib/ld-linux-x86-64.so.2 "$LFS/lib64/ld-lsb-x86-64.so.3"
+          mkdir -p "$WORK/build/glibc"
+          cd "$WORK/build/glibc"
+          printf 'rootsbindir=/usr/sbin\n' > configparms
+          "$WORK/sources/glibc-2.44/configure" --prefix=/usr --host="$LFS_TGT" --build="$("$WORK/sources/glibc-2.44/scripts/config.guess")" --disable-nscd --disable-werror libc_cv_slibdir=/usr/lib --enable-kernel=5.10
+          make -j"$(nproc)"
+          make -j1 "DESTDIR=$LFS" install
+
+      - name: Stage and validate glibc-only Maple package
+        run: |
+          set -euo pipefail
+          printf 'int main(void) { return 0; }\n' > "$WORK/smoke.c"
+          "$LFS/tools/bin/$LFS_TGT-gcc" "$WORK/smoke.c" -o "$WORK/smoke"
+          readelf -l "$WORK/smoke" | grep -F '/lib64/ld-linux-x86-64.so.2'
+          "$LFS/usr/lib/ld-linux-x86-64.so.2" --library-path "$LFS/usr/lib" "$WORK/smoke"
+          stage="$WORK/pkgroot"
+          mkdir -p "$stage"
+          make -C "$WORK/build/glibc" -j1 "DESTDIR=$stage" install
+          rm -f "$stage/usr/share/info/dir" "$stage/etc/ld.so.cache"
+          test -e "$stage/usr/lib/libc.so.6"
+          test -e "$stage/usr/lib/ld-linux-x86-64.so.2"
+          if find "$stage" -type l -lname '/*' -print | grep -q .; then
+            echo 'Maple cannot install absolute symlinks' >&2
+            exit 1
+          fi
+          while IFS= read -r top; do
+            case "$top" in usr|etc|var) ;; *) echo "Disallowed top-level path: $top" >&2; exit 1 ;; esac
+          done < <(find "$stage" -mindepth 1 -maxdepth 1 -printf '%f\n')
+          tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner -C "$stage" -cf - . | zstd --ultra -22 -T1 --no-progress -o dist/glibc-2.44-1.mcx
+          tar --zstd -tf dist/glibc-2.44-1.mcx >/dev/null
+          sha256sum dist/glibc-2.44-1.mcx
+
+      - name: Upload only the .mcx (no ZIP wrapper)
+        uses: actions/upload-artifact@v7
+        with:
+          name: glibc-2.44-1.mcx
+          path: dist/glibc-2.44-1.mcx
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
